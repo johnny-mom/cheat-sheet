@@ -6,7 +6,7 @@ spec:
   selector:
     matchLabels:
       app: coco-app
-  replicas: 1
+  replicas: 4
   template:
     metadata:
       labels:
