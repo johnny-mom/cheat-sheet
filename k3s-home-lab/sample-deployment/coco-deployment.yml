@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coco-deployment
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coco-app
+  namespace: coco-deployment
+spec:
+  selector:
+    matchLabels:
+      app: coco-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: coco-app
+    spec:
+      containers:
+      - name: coco-app
+        imagePullPolicy: Always
+        image: jmom/simple-coco-flask-app:latest
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coco-app-service
+  namespace: coco-deployment
+spec:
+  ports:
+    - port: 80
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: coco-app
+  type: LoadBalancer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coco-app-ingress
+  namespace: coco-deployment
+  annotations: 
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - coco.johnnymom.com
+    secretName: coco-johnnymom-com-cert # < cert-manager will store the created certificate in this secret.
+  rules:
+  - host: coco.johnnymom.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: coco-app-service
+            port:
+              number: 80

@@ -81,82 +81,104 @@ kubectl -n ingress-nginx get svc
 ```
 9. Deploy a sample app:
 ```
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: sampleapp
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sample-app-deployment
-  labels:
-    app: sampleapp
-  namespace: sampleapp
-spec:
-  replicas: 1
-  minReadySeconds: 10
-  selector:
-    matchLabels:
-      app: sampleapp
-  template:
-    metadata:
-      labels:
-        app: sampleapp
-    spec:
-      containers:
-        - name: sample-app-container
-          image: nginx
-          ports:
-            - containerPort: 80
-          resources:
-            limits:
-              memory: "128Mi" #128 MB
-              cpu: "200m" #200 millicpu (.2 cpu or 20% of the cpu)
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: sample-app-service
-  namespace: sampleapp
-spec:
- type: NodePort
- selector:
-  app: sampleapp
- ports:
-  - name: "sampleapp-tcp"
-    port: 8000
-    targetPort: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: sample-app-ingress
-  labels:
-    app: sampleapp
-  namespace: sampleapp
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: test.johnnymom.com
-      http:
-        paths:
-          - backend:
-              service:
-                name: sample-app-service
-                port:
-                  number: 80
-            path: /
-            pathType: Exact
-```
-10. Validate site works by assigning IP Address of ingress-nginx loadbalancer IP to a DNS name test.johnnymom.com.
+# deploys nginx
+kubectl create deploy nginx --image nginx
 
+# exposes nginx deployment
+kubectl expose deploy nginx --port 80 --type LoadBalancer
+
+## Cleanup deployment
+kubectl delete deployment nginx
+kubectl delete svc nginx
+```
+10. Grab IP Address of the service and validate site works via IP Address (metalLB will assign an IP Address to the service from the IP Address Pool)
+
+```
+# Get the IP Address
+kubectl get svc nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
+
+11. Update coredns config map ``` coredns ``` 
+```
+# add dns ips (8.8.8.8, 8.8.4.4) so pods can resolve external dns names (by default it resolves with search domain):
+
+# Stackoverflow: https://stackoverflow.com/questions/62664701/resolving-external-domains-from-within-pods-does-not-work
+
+prometheus :9153
+        forward . /etc/resolv.conf 8.8.8.8 8.8.4.4
+        cache 30
+        loop
+        reload
+```
+12. Test doing nslookup on test dnstools pod can resolve DNS Names to IP Addresses 
+```
+# Spin up a test pod
+kubectl run -it --rm --restart=Never --image=infoblox/dnstools:latest dnstools
+```
+## Deploy test nginx app (metallb + nginx + certmanager)
+1. 
+```
+
+```
 ## K3S certmanager
+1. Add cert-manager helm repo
+```
+helm repo add jetstack https://charts.jetstack.io
+```
+2. Update helm chart repo cache
+```
+helm repo update
+```
+3. Install cert-manager CRDs
+```
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.crds.yaml
+```
+4. Install cert-manager
+```
+helm install \
+  cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.11.0 \
+  # --set installCRDs=true
+```
+5. Install staging + prod issuer (HTTP01)
+```
+# This method requires http access to nginx ingress loadbalancer (DNS name points to this NAT'd IP Address. ex. nginx.johnnymom.com > 192.168.0.40 via port 80) for ACME to validate they can access our loadbalancer
+
+kubectl -f staging-issuer.yml
+kubectl -f prod-issuer.yml
+
+# Need to validate the the issuer is registered to ACME
+kubectl get clusterissuers -A
+kubectl describe clusterissuer
+
+```
+
 
 ## K3S Storage
 
 ## K3S Deployment (ARGOCD)
-
+Create argocd namespace:
+```
+kubectl create namespace argocd
+```
+Install ArgoCD Helm chart:
+```
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd --namespace argocd
+```
+Deploy ArgoCD ingress 
+```
+kubectl apply -f argocd-deployment/argocd-ingress.yaml
+```
+Update nginx-ingress controller deployment to include command:
+```
+--enable-ssl-passthrough
+```
+#### need to do above due to issues with multiple redirect issue w/ nginx-ingress
+#### source: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/
 
 ## K3S backup
 
