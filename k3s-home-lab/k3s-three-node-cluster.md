@@ -49,25 +49,14 @@
     ```
 6. Configure MetalLB
     ```
-    cat << 'EOF' | kubectl apply -f -
     apiVersion: metallb.io/v1beta1
     kind: IPAddressPool
     metadata:
-    name: default-pool
-    namespace: metallb-system
+      name: homelab-ip-pool
+      namespace: metallb-system
     spec:
-    addresses:
-    - 192.168.0.60-192.168.0.80
-    ---
-    apiVersion: metallb.io/v1beta1
-    kind: L2Advertisement
-    metadata:
-    name: default
-    namespace: metallb-system
-    spec:
-    ipAddressPools:
-    - default-pool
-    EOF
+      addresses:
+      - 192.168.0.60-192.168.0.80
     ```
 7. Install nginx-ingress
     ```
