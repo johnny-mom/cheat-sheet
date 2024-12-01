@@ -57,7 +57,7 @@
     namespace: metallb-system
     spec:
     addresses:
-    - 192.168.0.40-192.168.0.80
+    - 192.168.0.60-192.168.0.80
     ---
     apiVersion: metallb.io/v1beta1
     kind: L2Advertisement
